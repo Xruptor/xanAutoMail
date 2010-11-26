@@ -63,7 +63,7 @@ function xanAutoMail:SendMailFrame_Reset()
 	end
 	
 	--add the name to the history
-	SendMailNameEditBox:AddHistoryLine(name)
+	SendMailNameEditBox:AddHistoryLine(playerName)
 
 	--add the name to our recent DB, first check to see if it's already there
 	--if so then remove it, otherwise add it to the top of the list and remove the 11 entry from the table.
@@ -74,14 +74,14 @@ function xanAutoMail:SendMailFrame_Reset()
 			break
 		end
 	end
-	tinsert(DB_RECENT, 1, name)
+	tinsert(DB_RECENT, 1, playerName)
 	for k = #DB_RECENT, 11, -1 do
 		tremove(DB_RECENT, k)
 	end
 	self.hooks["SendMailFrame_Reset"]()
 	
-	--set the name to the auto fill
-	SendMailNameEditBox:SetText(name)
+	-- set the name to the auto fill
+	SendMailNameEditBox:SetText(playerName)
 	SendMailNameEditBox:HighlightText()
 end
 
