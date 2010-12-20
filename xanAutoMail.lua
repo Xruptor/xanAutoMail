@@ -11,6 +11,8 @@ local old_InboxFrame_OnClick
 local triggerStop = false
 local numInboxItems = 0
 local timeChk, timeDelay = 0, 1
+local stopLoop = 10
+local loopChk = 0
 
 local xanAutoMail = CreateFrame("frame","xanAutoMailFrame",UIParent)
 xanAutoMail:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
@@ -186,10 +188,17 @@ function mailLoop(this, arg1)
 		timeChk = 0
 		
 		--check for last or no messages
-		if numInboxItems <= 0 or GetInboxNumItems() <= 0 then
-			triggerStop = true
-			xanAutoMail:StopMail()
-			return
+		if numInboxItems <= 0 then
+			--double check that there aren't anymore mail items
+			--we use a loop check just in case to prevent infinite loops
+			if GetInboxNumItems() > 0 and loopChk < stopLoop then
+				loopChk = loopChk + 1
+				numInboxItems = GetInboxNumItems()
+			else
+				triggerStop = true
+				xanAutoMail:StopMail()
+				return
+			end
 		end
 		
 		--lets get the mail
@@ -210,6 +219,7 @@ function xanAutoMail:GetMail()
 	xanAutoMail_OpenAllBTN:Disable() --disable the button to prevent further clicks
 	triggerStop = false
 	timeChk, timeDelay = 0, 0.5
+	loopChk = 0
 	numInboxItems = GetInboxNumItems()
 	
 	old_InboxFrame_OnClick = InboxFrame_OnClick
