@@ -13,6 +13,7 @@ local numInboxItems = 0
 local timeChk, timeDelay = 0, 1
 local stopLoop = 10
 local loopChk = 0
+local skipCount = 0
 
 local xanAutoMail = CreateFrame("frame","xanAutoMailFrame",UIParent)
 xanAutoMail:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
@@ -39,7 +40,7 @@ function xanAutoMail:PLAYER_LOGIN()
 	self:RawHook("AutoComplete_Update", true)
 	
 	--make the open all button
-	local inboxAllButton = CreateFrame("Button", "xanAutoMail_OpenAllBTN", InboxFrame, "UIPanelButtonTemplate")
+	inboxAllButton = CreateFrame("Button", "xanAutoMail_OpenAllBTN", InboxFrame, "UIPanelButtonTemplate")
 	inboxAllButton:SetWidth(100)
 	inboxAllButton:SetHeight(20)
 	inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", 0, -55)
@@ -180,6 +181,18 @@ end
 	OPEN ALL MAIL
 --------------------------]]
 
+xanAutoMail:RegisterEvent("MAIL_INBOX_UPDATE")
+xanAutoMail:RegisterEvent("MAIL_SHOW")
+
+function bagCheck()
+	local totalFree = 0
+	for i=0, NUM_BAG_SLOTS do
+		local numberOfFreeSlots = GetContainerNumFreeSlots(i)
+		totalFree = totalFree + numberOfFreeSlots
+	end
+	return totalFree
+end
+
 function mailLoop(this, arg1)
 	timeChk = timeChk + arg1
 	if triggerStop then return end
@@ -191,7 +204,7 @@ function mailLoop(this, arg1)
 		if numInboxItems <= 0 then
 			--double check that there aren't anymore mail items
 			--we use a loop check just in case to prevent infinite loops
-			if GetInboxNumItems() > 0 and loopChk < stopLoop then
+			if GetInboxNumItems() > 0 and skipCount ~= GetInboxNumItems() and loopChk < stopLoop then
 				loopChk = loopChk + 1
 				numInboxItems = GetInboxNumItems()
 			else
@@ -200,12 +213,25 @@ function mailLoop(this, arg1)
 				return
 			end
 		end
-		
+
 		--lets get the mail
-		local _, _, _, _, money, COD, _, numItems = GetInboxHeaderInfo(numInboxItems)
+		local _, _, _, _, money, COD, _, numItems, wasRead, _, _, _, isGM = GetInboxHeaderInfo(numInboxItems)
 		
-		if money > 0 or (numItems and numItems > 0) and COD <= 0 then
-			AutoLootMailItem(numInboxItems)
+		if money > 0 or (numItems and numItems > 0) and COD <= 0 and not isGM then
+			--stop the loop if the mail was already read
+			if wasRead and loopChk > 0 then
+				triggerStop = true
+				xanAutoMail:StopMail()
+				return
+			elseif bagCheck() < 1 then
+				triggerStop = true
+				xanAutoMail:StopMail()
+				DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Your bags are full")
+			else
+				AutoLootMailItem(numInboxItems)
+			end
+		else
+			skipCount = skipCount + 1
 		end
 		
 		--decrease count
@@ -220,6 +246,7 @@ function xanAutoMail:GetMail()
 	triggerStop = false
 	timeChk, timeDelay = 0, 0.5
 	loopChk = 0
+	skipCount = 0
 	numInboxItems = GetInboxNumItems()
 	
 	old_InboxFrame_OnClick = InboxFrame_OnClick
@@ -249,6 +276,30 @@ function xanAutoMail:UI_ERROR_MESSAGE(event, arg1)
 		xanAutoMail:StopMail()
 		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Your bags are full")
 	end
+end
+
+--sometimes the mailbox is full, if this happens we have to make changes to the button position
+local function inboxFullCheck()
+	local nItem, nTotal = GetInboxNumItems()
+	if nItem and nTotal then
+		if ( nTotal > nItem) or InboxTooMuchMail:IsVisible() then
+			inboxAllButton:ClearAllPoints()
+			inboxAllButton:SetPoint("CENTER", InboxFrame, "BOTTOM", -10, 100)
+			inboxAllButton.movedBottom = true
+		elseif (( nTotal < nItem) or not InboxTooMuchMail:IsVisible()) and inboxAllButton.movedBottom then
+			inboxAllButton.movedBottom = nil
+			inboxAllButton:ClearAllPoints()
+			inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", 0, -55)
+		end 
+	end
+end
+
+function xanAutoMail:MAIL_INBOX_UPDATE()
+	inboxFullCheck()
+end
+
+function xanAutoMail:MAIL_SHOW()
+	inboxFullCheck()
 end
 
 if IsLoggedIn() then xanAutoMail:PLAYER_LOGIN() else xanAutoMail:RegisterEvent("PLAYER_LOGIN") end
