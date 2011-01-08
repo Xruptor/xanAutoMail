@@ -282,7 +282,7 @@ end
 local function inboxFullCheck()
 	local nItem, nTotal = GetInboxNumItems()
 	if nItem and nTotal then
-		if ( nTotal > nItem) or InboxTooMuchMail:IsVisible() then
+		if ( nTotal > nItem) or InboxTooMuchMail:IsVisible() and not inboxAllButton.movedBottom then
 			inboxAllButton:ClearAllPoints()
 			inboxAllButton:SetPoint("CENTER", InboxFrame, "BOTTOM", -10, 100)
 			inboxAllButton.movedBottom = true
