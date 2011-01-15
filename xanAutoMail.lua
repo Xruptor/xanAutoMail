@@ -18,8 +18,98 @@ local skipCount = 0
 local xanAutoMail = CreateFrame("frame","xanAutoMailFrame",UIParent)
 xanAutoMail:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
 
---lets embed AceHooks into our addon
-xanAutoMail = LibStub("AceHook-3.0"):Embed(xanAutoMail)
+--[[------------------------
+	HOOKING
+--------------------------]]
+
+local origHook = {}
+
+--create our own hooking function :)
+local function createHook(self, func, method, handler, secure, script)
+	if not func then return end
+	
+	--check if already hooked
+	local chkHook = false
+	if method and origHook[func] and origHook[func][method] then 
+		chkHook = true
+	elseif not method and origHook[func] then
+		chkHook = true
+	end
+
+	--if we don't have the hook and it's not secure then create it
+	if not chkHook and not secure and not script then
+	
+		--create tmp hook to replace original function
+		local tmp = function(...)
+			if origHook[func] then
+				if handler then
+					return handler(self, ...)
+				elseif method then
+					return self[method](self, ...)
+				else
+					return self[func](self, ...)
+				end
+			end
+		end
+	
+		--check to see if were using a method, if we aren't then replace hook
+		if not method then
+			--store the original hook and then replace it
+			origHook[func] = _G[func]
+			_G[func] = tmp
+		else
+			origHook[func] = origHook[func] or {}
+			origHook[func][method] = _G[func][method]
+			_G[func][method] = tmp
+		end
+		
+	elseif not chkHook and not secure and method and script then
+		--NOTE: func cannot be a string
+		--store the old script
+		origHook[func] = origHook[func] or {}
+		origHook[func][method] = func:GetScript(method)
+		
+		if handler then
+			func:SetScript(method, handler)
+		else
+			func:SetScript(method, self[method])
+			--will use a function from the addon as follows
+			--self:method(...)
+		end
+			
+	elseif not chkHook and secure then
+	
+		--it's a secure hook
+		if not method then
+			--NOTE: func must be a string for this to work properly
+			if handler then
+				hooksecurefunc(func, handler)
+			else
+				hooksecurefunc(func, self[func])
+				--will use a function from the addon as follows
+				--self:func(...)
+			end
+			origHook[func] = true
+		else
+			--NOTE: func must be a function/table and cannot be a string, method must be a string
+			if handler then
+				hooksecurefunc(func, method, handler)
+			else
+				hooksecurefunc(func, method, self[method])
+				--will use a function from the addon as follows
+				--self:method(...)
+			end
+			origHook[func] = origHook[func] or {}
+			origHook[func][method] = true
+		end
+		
+	end
+	
+end
+
+--[[------------------------
+	CORE
+--------------------------]]
 
 function xanAutoMail:PLAYER_LOGIN()
 	
@@ -33,11 +123,11 @@ function xanAutoMail:PLAYER_LOGIN()
 	SendMailNameEditBox:SetHistoryLines(15)
 	
 	--do the hooks
-	self:RawHook("SendMailFrame_Reset", true)
-	self:RawHook("MailFrameTab_OnClick", true)
-	self:RawHookScript(SendMailNameEditBox, "OnChar")
-	self:HookScript(SendMailNameEditBox, "OnEditFocusGained")
-	self:RawHook("AutoComplete_Update", true)
+	createHook(self, "SendMailFrame_Reset")
+	createHook(self, "MailFrameTab_OnClick")
+	createHook(self, "AutoComplete_Update")
+	createHook(self, SendMailNameEditBox, "OnEditFocusGained", nil, nil, true)
+	createHook(self, SendMailNameEditBox, "OnChar", nil, nil, true)
 	
 	--make the open all button
 	inboxAllButton = CreateFrame("Button", "xanAutoMail_OpenAllBTN", InboxFrame, "UIPanelButtonTemplate")
@@ -75,7 +165,7 @@ function xanAutoMail:SendMailFrame_Reset()
 	
 	--if we don't have something to work with then call original function
 	if string.len(playerName) < 1 then
-		return self.hooks["SendMailFrame_Reset"]()
+		return origHook["SendMailFrame_Reset"]()
 	end
 	
 	--add the name to the history
@@ -94,7 +184,7 @@ function xanAutoMail:SendMailFrame_Reset()
 	for k = #DB_RECENT, 11, -1 do
 		tremove(DB_RECENT, k)
 	end
-	self.hooks["SendMailFrame_Reset"]()
+	origHook["SendMailFrame_Reset"]()
 	
 	-- set the name to the auto fill
 	SendMailNameEditBox:SetText(playerName)
@@ -103,8 +193,8 @@ end
 
 --this is called when one of the mailtabs is clicked
 --we have to autofill the name when the tabs are clicked
-function xanAutoMail:MailFrameTab_OnClick(button, tab)
-	self.hooks["MailFrameTab_OnClick"](button, tab)
+function xanAutoMail:MailFrameTab_OnClick(self, tab)
+	origHook["MailFrameTab_OnClick"](self, tab)
 	if tab == 2 then
 		local playerName = DB_RECENT[1]
 		if playerName and SendMailNameEditBox:GetText() == "" then
@@ -115,10 +205,10 @@ function xanAutoMail:MailFrameTab_OnClick(button, tab)
 end
 
 --this function is called each time a character is pressed in the playername field of the mail window
-function xanAutoMail:OnChar(editbox, ...)
-	if editbox:GetUTF8CursorPosition() ~= strlenutf8(editbox:GetText()) then return end
+function xanAutoMail:OnChar(...)
 
-	local text = strupper(editbox:GetText())
+	if self:GetUTF8CursorPosition() ~= strlenutf8(self:GetText()) then return end
+	local text = strupper(self:GetText())
 	local textlen = strlen(text)
 	local foundName
 
@@ -156,24 +246,24 @@ function xanAutoMail:OnChar(editbox, ...)
 	end
 
 	--call the original onChar to display the dropdown
-	self.hooks[SendMailNameEditBox].OnChar(editbox, ...)
-
+	origHook[SendMailNameEditBox]["OnChar"](self, ...)
+	
 	--if we found a name then override the one in the editbox
 	if foundName then
-		editbox:SetText(foundName)
-		editbox:HighlightText(textlen, -1)
-		editbox:SetCursorPosition(textlen)
+		self:SetText(foundName)
+		self:HighlightText(textlen, -1)
+		self:SetCursorPosition(textlen)
 	end
 
 end
 
-function xanAutoMail:OnEditFocusGained(editbox, ...)
+function xanAutoMail:OnEditFocusGained(...)
 	SendMailNameEditBox:HighlightText()
 end
 
 function xanAutoMail:AutoComplete_Update(editBox, editBoxText, utf8Position, ...)
 	if editBox ~= SendMailNameEditBox then
-		self.hooks["AutoComplete_Update"](editBox, editBoxText, utf8Position, ...)
+		origHook["AutoComplete_Update"](editBox, editBoxText, utf8Position, ...)
 	end
 end
 
