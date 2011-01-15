@@ -14,6 +14,7 @@ local timeChk, timeDelay = 0, 1
 local stopLoop = 10
 local loopChk = 0
 local skipCount = 0
+local moneyCount = 0
 
 local origHook = {}
 
@@ -195,7 +196,31 @@ end
 xanAutoMail:RegisterEvent("MAIL_INBOX_UPDATE")
 xanAutoMail:RegisterEvent("MAIL_SHOW")
 
-function bagCheck()
+local function colorMoneyText(value)
+	if not value then return "" end
+	local gold = abs(value / 10000)
+	local silver = abs(mod(value / 100, 100))
+	local copper = abs(mod(value, 100))
+	
+	local GOLD_ABRV = "g"
+	local SILVER_ABRV = "s"
+	local COPPER_ABRV = "c"
+	
+	local WHITE = "ffffff"
+	local COLOR_COPPER = "eda55f"
+	local COLOR_SILVER = "c7c7cf"
+	local COLOR_GOLD = "ffd700"
+
+	if value >= 10000 or value <= -10000 then
+		return format("|cff%s%d|r|cff%s%s|r |cff%s%d|r|cff%s%s|r |cff%s%d|r|cff%s%s|r", WHITE, gold, COLOR_GOLD, GOLD_ABRV, WHITE, silver, COLOR_SILVER, SILVER_ABRV, WHITE, copper, COLOR_COPPER, COPPER_ABRV)
+	elseif value >= 100 or value <= -100 then
+		return format("|cff%s%d|r|cff%s%s|r |cff%s%d|r|cff%s%s|r", WHITE, silver, COLOR_SILVER, SILVER_ABRV, WHITE, copper, COLOR_COPPER, COPPER_ABRV)
+	else
+		return format("|cff%s%d|r|cff%s%s|r", WHITE, copper, COLOR_COPPER, COPPER_ABRV)
+	end
+end
+
+local function bagCheck()
 	local totalFree = 0
 	for i=0, NUM_BAG_SLOTS do
 		local numberOfFreeSlots = GetContainerNumFreeSlots(i)
@@ -204,7 +229,7 @@ function bagCheck()
 	return totalFree
 end
 
-function mailLoop(this, arg1)
+local function mailLoop(this, arg1)
 	timeChk = timeChk + arg1
 	if triggerStop then return end
 	
@@ -239,6 +264,7 @@ function mailLoop(this, arg1)
 				xanAutoMail:StopMail()
 				DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Your bags are full")
 			else
+				if money > 0 then moneyCount = moneyCount + money end
 				AutoLootMailItem(numInboxItems)
 			end
 		else
@@ -258,6 +284,7 @@ function xanAutoMail:GetMail()
 	timeChk, timeDelay = 0, 0.5
 	loopChk = 0
 	skipCount = 0
+	moneyCount = 0
 	numInboxItems = GetInboxNumItems()
 	
 	old_InboxFrame_OnClick = InboxFrame_OnClick
@@ -278,6 +305,10 @@ function xanAutoMail:StopMail()
 	end
 	xanAutoMail:UnregisterEvent("UI_ERROR_MESSAGE")
 	xanAutoMail:SetScript("OnUpdate", nil)
+	--check for money output
+	if moneyCount > 0 then
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Total money from mailbox ["..colorMoneyText(moneyCount).."]")
+	end
 end
 
 --this is to stop the loop if our bags are filled
