@@ -1,8 +1,8 @@
-## Interface: 40200
+## Interface: 40300
 ## Title: xanAutoMail
 ## Notes: Expands blizzards automatic name generation for sending Mail to include people outside the guild.
 ## Author: Xruptor
-## Version: 1.7
+## Version: 1.8
 ## SavedVariables: xanAutoMailDB
 
 libs\LibStub\LibStub.lua
