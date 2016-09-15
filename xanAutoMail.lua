@@ -6,20 +6,17 @@ local DB_PLAYER
 local DB_RECENT
 local currentPlayer
 local currentRealm
-local inboxAllButton
-local old_InboxFrame_OnClick
-local triggerStop = false
-local numInboxItems = 0
-local timeChk, timeDelay = 0, 1
-local stopLoop = 10
-local loopChk = 0
-local skipCount = 0
-local moneyCount = 0
-
 local origHook = {}
+local inboxAllButton
+local inboxInfoText
 
 local xanAutoMail = CreateFrame("frame","xanAutoMailFrame",UIParent)
 xanAutoMail:SetScript("OnEvent", function(self, event, ...) if self[event] then return self[event](self, event, ...) end end)
+
+local debugf = tekDebug and tekDebug:GetFrame("xanAutoMail")
+local function Debug(...)
+    if debugf then debugf:AddMessage(string.join(", ", tostringall(...))) end
+end
 
 --[[------------------------
 	CORE
@@ -36,7 +33,9 @@ function xanAutoMail:PLAYER_LOGIN()
 	--increase the mailbox history lines to 15
 	SendMailNameEditBox:SetHistoryLines(15)
 	
-	--do the hooks
+	--HOOKS FOR CHARACTER NAME HISTORY
+	---------------------------------
+	---------------------------------
 	origHook["SendMailFrame_Reset"] = SendMailFrame_Reset
 	SendMailFrame_Reset = self.SendMailFrame_Reset
 	
@@ -51,17 +50,25 @@ function xanAutoMail:PLAYER_LOGIN()
 	origHook[SendMailNameEditBox]["OnChar"] = SendMailNameEditBox:GetScript("OnChar")
 	SendMailNameEditBox:SetScript("OnEditFocusGained", self.OnEditFocusGained)
 	SendMailNameEditBox:SetScript("OnChar", self.OnChar)
+	---------------------------------
+	---------------------------------
 	
 	--make the open all button
 	inboxAllButton = CreateFrame("Button", "xanAutoMail_OpenAllBTN", InboxFrame, "UIPanelButtonTemplate")
 	inboxAllButton:SetWidth(100)
 	inboxAllButton:SetHeight(20)
-	inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", 0, -55)
+	inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", -80, -55)
 	inboxAllButton:SetText("Open All")
-	inboxAllButton:SetScript("OnClick", function() xanAutoMail.GetMail() end)
+	inboxAllButton:SetScript("OnClick", function() xanAutoMail.StartMailGrab() end)
+
+	inboxInfoText = InboxFrame:CreateFontString("xanAutoMail_InfoText", "ARTWORK", "GameFontNormalSmall")
+	inboxInfoText:SetJustifyH("LEFT")
+	inboxInfoText:SetFontObject("GameFontNormal")
+	inboxInfoText:SetPoint("TOPLEFT", inboxAllButton, "TOPRIGHT", 5, -5)
 
 	self:UnregisterEvent("PLAYER_LOGIN")
 	self.PLAYER_LOGIN = nil
+
 end
 
 function xanAutoMail:StartupDB()
@@ -79,6 +86,11 @@ function xanAutoMail:StartupDB()
 	--check for current user
 	if DB_PLAYER[currentPlayer] == nil then DB_PLAYER[currentPlayer] = true end
 end
+
+
+---------------------------------------------------
+---------------CHARACTER NAME DB ------------------
+---------------------------------------------------
 
 --This is called when mailed is sent
 function xanAutoMail:SendMailFrame_Reset()
@@ -189,10 +201,21 @@ function xanAutoMail:AutoComplete_Update(editBoxText, utf8Position, ...)
 	end
 end
 
+---------------------------------------------------
+---------------------------------------------------
+---------------------------------------------------
+
 --[[------------------------
 	OPEN ALL MAIL
 --------------------------]]
 
+local delayCount = {}
+local moneyCount = 0
+local errorCount = 0
+local errorCheckCount = 0
+local currentStatus = "STOP"
+
+xanAutoMail:RegisterEvent("MAIL_CLOSED")
 xanAutoMail:RegisterEvent("MAIL_INBOX_UPDATE")
 xanAutoMail:RegisterEvent("MAIL_SHOW")
 
@@ -220,7 +243,7 @@ local function colorMoneyText(value)
 	end
 end
 
-local function bagCheck()
+local function freeSpace()
 	local totalFree = 0
 	for i=0, NUM_BAG_SLOTS do
 		local numberOfFreeSlots = GetContainerNumFreeSlots(i)
@@ -229,120 +252,191 @@ local function bagCheck()
 	return totalFree
 end
 
-local function mailLoop(this, arg1)
-	timeChk = timeChk + arg1
-	if triggerStop then return end
-	
-	if (timeChk > timeDelay) then
-		timeChk = 0
-		
-		--check for last or no messages
-		if numInboxItems <= 0 then
-			--double check that there aren't anymore mail items
-			--we use a loop check just in case to prevent infinite loops
-			if GetInboxNumItems() > 0 and skipCount ~= GetInboxNumItems() and loopChk < stopLoop then
-				loopChk = loopChk + 1
-				numInboxItems = GetInboxNumItems()
-			else
-				triggerStop = true
-				xanAutoMail:StopMail()
-				return
-			end
-		end
-
-		--lets get the mail
-		local _, _, _, _, money, COD, _, numItems, wasRead, _, _, _, isGM = GetInboxHeaderInfo(numInboxItems)
-		
-		if money > 0 or (numItems and numItems > 0) and COD <= 0 and not isGM then
-			--stop the loop if the mail was already read
-			if wasRead and loopChk > 0 then
-				triggerStop = true
-				xanAutoMail:StopMail()
-				return
-			elseif bagCheck() < 1 then
-				triggerStop = true
-				xanAutoMail:StopMail()
-				DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Your bags are full")
-			else
-				if money > 0 then moneyCount = moneyCount + money end
-				AutoLootMailItem(numInboxItems)
-			end
-		else
-			skipCount = skipCount + 1
-		end
-		
-		--decrease count
-		numInboxItems = numInboxItems - 1
-	end
-end
-
-function xanAutoMail:GetMail()
-	if GetInboxNumItems() == 0 then return end
-	
-	xanAutoMail_OpenAllBTN:Disable() --disable the button to prevent further clicks
-	triggerStop = false
-	timeChk, timeDelay = 0, 0.5
-	loopChk = 0
-	skipCount = 0
-	moneyCount = 0
-	numInboxItems = GetInboxNumItems()
-	
-	old_InboxFrame_OnClick = InboxFrame_OnClick
-	InboxFrame_OnClick = function() end
-	
-	--register for inventory full error
-	xanAutoMail:RegisterEvent("UI_ERROR_MESSAGE")
-	
-	--initiate the loop
-	xanAutoMail:SetScript("OnUpdate", mailLoop)
-end
-
-function xanAutoMail:StopMail()
-	xanAutoMail_OpenAllBTN:Enable() --enable the button again
-	if old_InboxFrame_OnClick then
-		InboxFrame_OnClick = old_InboxFrame_OnClick
-		old_InboxFrame_OnClick = nil
-	end
-	xanAutoMail:UnregisterEvent("UI_ERROR_MESSAGE")
-	xanAutoMail:SetScript("OnUpdate", nil)
-	--check for money output
-	if moneyCount > 0 then
-		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Total money from mailbox ["..colorMoneyText(moneyCount).."]")
-	end
-end
-
---this is to stop the loop if our bags are filled
-function xanAutoMail:UI_ERROR_MESSAGE(event, arg1)
-	if arg1 == ERR_INV_FULL then
-		triggerStop = true
-		xanAutoMail:StopMail()
-		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Your bags are full")
-	end
-end
-
---sometimes the mailbox is full, if this happens we have to make changes to the button position
 local function inboxFullCheck()
+	--sometimes the mailbox is full, if this happens we have to make changes to the button position
 	local nItem, nTotal = GetInboxNumItems()
 	if nItem and nTotal then
 		if ( nTotal > nItem) or InboxTooMuchMail:IsVisible() and not inboxAllButton.movedBottom then
 			inboxAllButton:ClearAllPoints()
-			inboxAllButton:SetPoint("CENTER", InboxFrame, "BOTTOM", -10, 100)
+			inboxAllButton:SetPoint("CENTER", InboxFrame, "BOTTOM", -60, 100)
 			inboxAllButton.movedBottom = true
+			inboxInfoText:ClearAllPoints()
+			inboxInfoText:SetPoint("TOPLEFT", inboxAllButton, "TOPRIGHT", 5, -5)
 		elseif (( nTotal < nItem) or not InboxTooMuchMail:IsVisible()) and inboxAllButton.movedBottom then
 			inboxAllButton.movedBottom = nil
 			inboxAllButton:ClearAllPoints()
-			inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", 0, -55)
+			inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", -80, -55)
+			inboxInfoText:ClearAllPoints()
+			inboxInfoText:SetPoint("TOPLEFT", inboxAllButton, "TOPRIGHT", 5, -5)
 		end 
 	end
 end
 
-function xanAutoMail:MAIL_INBOX_UPDATE()
-	inboxFullCheck()
+xanAutoMail:SetScript("OnUpdate",
+	function( self, elapsed )
+		if #delayCount > 0 then
+			for i = #delayCount, 1, -1 do
+				if delayCount[i].endTime and delayCount[i].endTime <= GetTime() then
+					local func = delayCount[i].callbackFunction
+					tremove(delayCount, i)
+					func()
+				end
+			end
+		end
+	end
+)
+
+function xanAutoMail:Delay(name, duration, callbackFunction, force)
+	if not force and currentStatus == "STOP" then return end
+	for k, q in ipairs(delayCount) do
+		if q.name == name then
+			--don't run the same delay more than once
+			return
+		end
+	end
+	tinsert(delayCount, {name=name, duration=duration, endTime=(GetTime()+duration), callbackFunction=callbackFunction})
+end
+
+function xanAutoMail:UpdateInfoText()
+	local nItem, nTotal = GetInboxNumItems()
+	if nTotal == nItem then
+		inboxInfoText:SetText(format("Showing all %d mail.", nItem))
+	else
+		inboxInfoText:SetText(format("Showing %d of %d mail.", nItem, nTotal))
+	end
+	--hide the stupid icon if necessary
+	if nTotal <= 0 and MiniMapMailFrame:IsVisible() then
+		MiniMapMailFrame:Hide()
+	end
 end
 
 function xanAutoMail:MAIL_SHOW()
 	inboxFullCheck()
+	CheckInbox()
+	inboxInfoText:SetText("Waiting...")
+	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
 end
+
+function xanAutoMail:MAIL_CLOSED()
+	inboxFullCheck()
+	delayCount = {} --reset any delay in queue
+	inboxInfoText:SetText("")
+end
+
+function xanAutoMail:MAIL_INBOX_UPDATE()
+	if currentStatus == "STOP" then return end
+	inboxFullCheck()
+	xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
+end
+
+function xanAutoMail:UI_ERROR_MESSAGE(event, arg1)
+	local stopMailGrab = false
+	if arg1 == ERR_MAIL_DATABASE_ERROR then
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) There was a mailbox database error from the server.")
+		stopMailGrab = true
+	elseif arg1 == ERR_INV_FULL then
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) Your inventory is full.")
+		stopMailGrab = true
+	elseif arg1 == ERR_ITEM_MAX_COUNT then
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) Cannot loot anymore unique items from Mailbox.")
+	end
+	
+	if stopMailGrab then
+		xanAutoMail:StopMailGrab()
+		return
+	end
+end
+
+function xanAutoMail:GrabNextMailItem()
+	if currentStatus == "STOP" then return end
+	
+	--do inbox check
+	if currentStatus == "CHECK" then
+		CheckInbox()
+		currentStatus = "SKIPCHECK"
+		xanAutoMail:Delay("mailGrabNextItem", 1, xanAutoMail.GrabNextMailItem)
+		return
+	end
+	
+	local nItem, nTotal = GetInboxNumItems()
+	
+	xanAutoMail:UpdateInfoText()
+	
+	--check to see if the last messages were read or if we have nothing to work with
+	if nTotal == errorCount or nTotal <= 0 or errorCheckCount > 10 then
+		xanAutoMail:StopMailGrab()
+		return
+	elseif freeSpace() < 1 then
+		xanAutoMail:StopMailGrab()
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) Your inventory is full.")
+		return
+	elseif nItem <= 0 and nTotal > 0 then
+		--if we still have something to work with then fire in another 60 seconds
+		currentStatus = "CHECK"
+		errorCheckCount = 0
+		xanAutoMail:Delay("mailInboxCheck", 60, xanAutoMail.GrabNextMailItem)
+		inboxInfoText:SetText("Waiting 60 seconds")
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Waiting 60 seconds for next mail batch.")
+		return
+	end
+	
+	errorCount = 0
+	
+	for i = 1, nItem do
+		local _, _, _, _, money, COD, _, numItems, wasRead, _, _, _, isGM = GetInboxHeaderInfo(i)
+		
+		if money > 0 or (numItems and numItems > 0) and COD <= 0 and not isGM then
+			if wasRead then
+				errorCount = errorCount + 1
+			else
+				if money > 0 then moneyCount = moneyCount + money end
+				AutoLootMailItem(i)
+				--we looted something so lets wait for next update
+				return
+			end
+		else
+			errorCount = errorCount + 1
+		end
+	end
+	
+	--if absolutely nothing happened then exit the loop just in case
+	if errorCount <= 0 then
+		xanAutoMail:StopMailGrab()
+		return
+	else
+		--there was an error so lets try to grab again just in case our total = total errors
+		xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
+		errorCheckCount = errorCheckCount + 1 --this is another emergency stop, don't do more than 10 error checks
+	end
+end
+
+function xanAutoMail:StartMailGrab()
+	if GetInboxNumItems() == 0 then return end
+	currentStatus = "START"
+	inboxAllButton:Disable()
+	
+	--register for inventory full error
+	xanAutoMail:RegisterEvent("UI_ERROR_MESSAGE")
+	
+	moneyCount = 0
+	errorCount = 0
+	errorCheckCount = 0
+	xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
+end
+
+function xanAutoMail:StopMailGrab()
+	currentStatus = "STOP"
+	delayCount = {}
+	inboxAllButton:Enable()
+	xanAutoMail:UnregisterEvent("UI_ERROR_MESSAGE")
+	if moneyCount > 0 then
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Total money from mailbox ["..colorMoneyText(moneyCount).."]")
+	end
+	
+	CheckInbox()
+	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
+end
+
 
 if IsLoggedIn() then xanAutoMail:PLAYER_LOGIN() else xanAutoMail:RegisterEvent("PLAYER_LOGIN") end
 
