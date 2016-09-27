@@ -324,9 +324,9 @@ function xanAutoMail:MAIL_CLOSED()
 end
 
 function xanAutoMail:MAIL_INBOX_UPDATE()
+	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
 	if currentStatus == "STOP" then return end
 	xanAutoMail:Delay("mailCheckMailUpdate", 0.3, xanAutoMail.CheckMailUpdate)
-	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
 end
 
 function xanAutoMail:UI_ERROR_MESSAGE(event, arg1)
