@@ -316,7 +316,7 @@ function xanAutoMail:MAIL_SHOW()
 	inboxFullCheck()
 	CheckInbox()
 	inboxInfoText:SetText("Waiting...")
-	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
+	xanAutoMail:Delay("mailInfoText", 0.5, xanAutoMail.UpdateInfoText, true)
 end
 
 function xanAutoMail:MAIL_CLOSED()
@@ -324,9 +324,9 @@ function xanAutoMail:MAIL_CLOSED()
 end
 
 function xanAutoMail:MAIL_INBOX_UPDATE()
-	xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
+	xanAutoMail:Delay("mailInfoText", 0.5, xanAutoMail.UpdateInfoText, true)
 	if currentStatus == "STOP" then return end
-	xanAutoMail:Delay("mailCheckMailUpdate", 0.3, xanAutoMail.CheckMailUpdate)
+	xanAutoMail:Delay("mailCheckMailUpdate", 0.2, xanAutoMail.CheckMailUpdate)
 end
 
 function xanAutoMail:UI_ERROR_MESSAGE(event, arg1)
@@ -356,9 +356,9 @@ function xanAutoMail:CheckMailUpdate()
 	--check to see if our inbox has decreased by one since we last autolooted
 	local nItem, nTotal = GetInboxNumItems()
 	if nItem <= mailCount - 1 or nTotal == 0 then
-		xanAutoMail:Delay("mailGrabNextItem", 0.3, xanAutoMail.GrabNextMailItem)
+		xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
 	else
-		xanAutoMail:Delay("mailCheckMailUpdate", 0.3, xanAutoMail.CheckMailUpdate)
+		xanAutoMail:Delay("mailCheckMailUpdate", 0.2, xanAutoMail.CheckMailUpdate)
 	end
 end
 
@@ -369,7 +369,7 @@ function xanAutoMail:GrabNextMailItem()
 	if currentStatus == "CHECK" then
 		CheckInbox()
 		currentStatus = "SKIPCHECK"
-		xanAutoMail:Delay("mailGrabNextItem", 1, xanAutoMail.GrabNextMailItem)
+		xanAutoMail:Delay("mailGrabNextItem", 0.5, xanAutoMail.GrabNextMailItem)
 		return
 	end
 	
@@ -389,9 +389,9 @@ function xanAutoMail:GrabNextMailItem()
 		--if we still have something to work with then fire in another 60 seconds
 		currentStatus = "CHECK"
 		errorCheckCount = 0
-		xanAutoMail:Delay("mailInboxCheck", 60, xanAutoMail.GrabNextMailItem)
-		inboxInfoText:SetText("Waiting 60 seconds")
-		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Waiting 60 seconds for next mail batch.")
+		xanAutoMail:Delay("mailInboxCheck", 45, xanAutoMail.GrabNextMailItem)
+		inboxInfoText:SetText("Waiting 45 seconds")
+		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Waiting 45 seconds for next mail batch.")
 		return
 	end
 	
@@ -422,7 +422,7 @@ function xanAutoMail:GrabNextMailItem()
 		return
 	else
 		--there was an error so lets try to grab again just in case our total = total errors (which could mean all mail has been read)
-		xanAutoMail:Delay("mailGrabNextItem", 0.3, xanAutoMail.GrabNextMailItem)
+		xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
 		errorCheckCount = errorCheckCount + 1 --this is another emergency stop, don't do more than 10 error checks
 	end
 end
@@ -434,7 +434,7 @@ function xanAutoMail:StartMailGrab()
 	moneyCount = 0
 	errorCount = 0
 	errorCheckCount = 0
-	xanAutoMail:Delay("mailGrabNextItem", 0.3, xanAutoMail.GrabNextMailItem)
+	xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
 end
 
 function xanAutoMail:StopMailGrab(force)
@@ -446,7 +446,7 @@ function xanAutoMail:StopMailGrab(force)
 			DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Total money from mailbox ["..colorMoneyText(moneyCount).."]")
 		end
 		CheckInbox()
-		xanAutoMail:Delay("mailInfoText", 1, xanAutoMail.UpdateInfoText, true)
+		xanAutoMail:Delay("mailInfoText", 0.5, xanAutoMail.UpdateInfoText, true)
 	end
 end
 
