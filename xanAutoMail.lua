@@ -245,7 +245,6 @@ local function colorMoneyText(value)
 end
 
 local function freeSpace()
-	Debug("freeSpace")
 	local totalFree = 0
 	for i=0, NUM_BAG_SLOTS do
 		local numberOfFreeSlots = GetContainerNumFreeSlots(i)
@@ -264,14 +263,12 @@ local function inboxFullCheck()
 			inboxAllButton.movedBottom = true
 			inboxInfoText:ClearAllPoints()
 			inboxInfoText:SetPoint("TOPLEFT", inboxAllButton, "TOPRIGHT", 5, -5)
-			Debug("inboxFullCheck", "moved bottom")
 		elseif (( nTotal < nItem) or not InboxTooMuchMail:IsVisible()) and inboxAllButton.movedBottom then
 			inboxAllButton.movedBottom = nil
 			inboxAllButton:ClearAllPoints()
 			inboxAllButton:SetPoint("CENTER", InboxFrame, "TOP", -80, -55)
 			inboxInfoText:ClearAllPoints()
 			inboxInfoText:SetPoint("TOPLEFT", inboxAllButton, "TOPRIGHT", 5, -5)
-			Debug("inboxFullCheck", "not moved")
 		end 
 	end
 end
@@ -298,11 +295,9 @@ function xanAutoMail:Delay(name, duration, callbackFunction, force)
 			q.duration = duration
 			q.endTime = (GetTime()+duration)
 			q.callbackFunction = callbackFunction
-			Debug("UPDATED", q.name, q.duration, q.endTime)
 			return
 		end
 	end
-	Debug("ADDED", name, duration, (GetTime()+duration))
 	tinsert(delayCount, {name=name, duration=duration, endTime=(GetTime()+duration), callbackFunction=callbackFunction})
 end
 
@@ -320,7 +315,6 @@ function xanAutoMail:UpdateInfoText()
 end
 
 function xanAutoMail:MAIL_SHOW()
-	Debug("MAIL_SHOW")
 	inboxFullCheck()
 	CheckInbox()
 	inboxInfoText:SetText("Waiting...")
@@ -328,7 +322,6 @@ function xanAutoMail:MAIL_SHOW()
 end
 
 function xanAutoMail:MAIL_CLOSED()
-	Debug("MAIL_CLOSED")
 	xanAutoMail:StopMailGrab(true, 1)
 end
 
@@ -337,7 +330,6 @@ function xanAutoMail:MAIL_INBOX_UPDATE()
 	if currentStatus == "STOP" then return end
 	--keep increasing the delay before the next mail grab until all items are taken from current opened mail
 	xanAutoMail:Delay("mailGrabNextItem", 0.5, xanAutoMail.GrabNextMailItem)
-	Debug("MAIL_INBOX_UPDATE", "mailGrabNextItem")
 end
 
 function xanAutoMail:UI_ERROR_MESSAGE(event, num, msg)
@@ -376,10 +368,8 @@ end
 
 function xanAutoMail:GrabNextMailItem()
 	if currentStatus == "STOP" then return end
-	Debug("GrabNextMailItem", "BEGIN")
 	--do inbox check
 	if currentStatus == "CHECK" then
-		Debug("GrabNextMailItem", currentStatus)
 		CheckInbox()
 		currentStatus = "SKIPCHECK"
 		xanAutoMail:Delay("mailGrabNextItem", 0.5, xanAutoMail.GrabNextMailItem)
@@ -387,7 +377,6 @@ function xanAutoMail:GrabNextMailItem()
 	end
 	
 	local nItem, nTotal = GetInboxNumItems()
-	Debug("GrabNextMailItem", "START", nItem, nTotal)
 	
 	xanAutoMail:UpdateInfoText()
 	
@@ -396,7 +385,6 @@ function xanAutoMail:GrabNextMailItem()
 		if errorCheckCount > 50 then
 			DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) Mailbox latency error. (Try Again)")
 		end
-		Debug("GrabNextMailItem", 2, nItem, nTotal, skipCount, errorCheckCount)
 		xanAutoMail:StopMailGrab(false, 4)
 		return
 	elseif freeSpace() < 1 then
@@ -410,7 +398,6 @@ function xanAutoMail:GrabNextMailItem()
 		xanAutoMail:Delay("mailInboxCheck", 45, xanAutoMail.GrabNextMailItem)
 		inboxInfoText:SetText("Waiting 45 seconds")
 		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Waiting 45 seconds for next mail batch.")
-		Debug("GrabNextMailItem", 3, currentStatus, nItem, nTotal, skipCount)
 		return
 	end
 	
@@ -424,13 +411,10 @@ function xanAutoMail:GrabNextMailItem()
 			TakeInboxMoney(mIndex)
 			AutoLootMailItem(mIndex)
 			--we looted something so lets wait for next update
-			Debug("GrabNextMailItem", 5, money, mIndex)
 			xanAutoMail:Delay("mailGrabNextItem", 0.5, xanAutoMail.GrabNextMailItem) --just in case
 			return
 		end
-		Debug("GrabNextMailItem", "LOGIC_ELSE", money, COD, numItems, wasRead, isGM)
 		if xanAutoMail:IsMailItemEmpty(mIndex) then
-			Debug("GrabNextMailItem", "DeleteInboxItem", mIndex)
 			DeleteInboxItem(mIndex)
 			xanAutoMail:Delay("mailGrabNextItem", 0.5, xanAutoMail.GrabNextMailItem) --just in case
 			return
@@ -438,17 +422,13 @@ function xanAutoMail:GrabNextMailItem()
 		
 		skipCount = skipCount + 1
 	end
-	
-	Debug("GrabNextMailItem", "skipCount", skipCount)
-	
+
 	xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
 	errorCheckCount = errorCheckCount + 1
-	Debug("errorCheckCount", errorCheckCount)
 
 end
 
 function xanAutoMail:StartMailGrab()
-	Debug("StartMailGrab")
 	if GetInboxNumItems() == 0 then return end
 	currentStatus = "START"
 	inboxAllButton:Disable()
@@ -459,7 +439,6 @@ function xanAutoMail:StartMailGrab()
 end
 
 function xanAutoMail:StopMailGrab(force, flag)
-	Debug("StopMailGrab", flag)
 	currentStatus = "STOP"
 	delayCount = {}
 	inboxAllButton:Enable()
