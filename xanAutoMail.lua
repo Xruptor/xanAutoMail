@@ -212,6 +212,7 @@ end
 local delayCount = {}
 local moneyCount = 0
 local skipCount = 0
+local currMailName = ""
 local errorCheckCount = 0
 local currentStatus = "STOP"
 
@@ -345,7 +346,8 @@ function xanAutoMail:UI_ERROR_MESSAGE(event, num, msg)
 		stopMailGrab = true
 	elseif msg == ERR_ITEM_MAX_COUNT then
 		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: (ERROR) Cannot loot anymore unique items from Mailbox.")
-		DEFAULT_CHAT_FRAME:AddMessage("xanAutoMail: Please the delete item(s) from the Mailbox before trying again.")
+		DEFAULT_CHAT_FRAME:AddMessage("Please the delete item(s) from the Mailbox before trying again.")
+		DEFAULT_CHAT_FRAME:AddMessage("[SUBJECT:] "..tostring(currMailName))
 		stopMailGrab = true
 	end
 
@@ -402,9 +404,12 @@ function xanAutoMail:GrabNextMailItem()
 	end
 	
 	skipCount = 0 --reset
+	currMailName = "" --reset
 	
 	for mIndex = nItem, 1, -1 do
-		local _, _, _, _, money, COD, _, numItems, wasRead, _, _, _, isGM = GetInboxHeaderInfo(mIndex)
+		local _, _, _, subject, money, COD, _, numItems, wasRead, _, _, _, isGM = GetInboxHeaderInfo(mIndex)
+		
+		currMailName = subject
 		
 		if money > 0 or (numItems and numItems > 0) and COD <= 0 and not isGM then
 			if money > 0 then moneyCount = moneyCount + money end
@@ -433,6 +438,7 @@ function xanAutoMail:StartMailGrab()
 	currentStatus = "START"
 	inboxAllButton:Disable()
 	moneyCount = 0
+	currMailName = ""
 	skipCount = 0
 	errorCheckCount = 0
 	xanAutoMail:Delay("mailGrabNextItem", 0.2, xanAutoMail.GrabNextMailItem)
